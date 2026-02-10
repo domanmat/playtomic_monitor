@@ -32,6 +32,7 @@ VENUES = [
 ]
 
 SCAN_INTERVAL_MIN = 10
+DAILY_SUMMARY_HOUR = 12  # send full summary at 12:00
 DB_PATH = os.environ.get("DB_PATH", "playtomic.db")
 FILTERS_PATH = "filters.sql"
 
@@ -72,9 +73,12 @@ def main():
     conn = sqlite3.connect(DB_PATH)
     init_db(conn)
 
+    last_summary_date = None
+
     print(f"Playtomic Slot Monitor started")
     print(f"  Monitoring {len(VENUES)} venue(s)")
     print(f"  Scan interval: {SCAN_INTERVAL_MIN} minutes")
+    print(f"  Daily summary at: {DAILY_SUMMARY_HOUR}:00")
     print(f"  Database: {DB_PATH}")
     print(f"  Filters: {FILTERS_PATH}")
     print()
@@ -112,6 +116,35 @@ def main():
                     print("  No filter matches on new slots")
             else:
                 print("  Skipping filters (no new slots)")
+
+            # Daily rebuild + summary — once per day at DAILY_SUMMARY_HOUR
+            today = now.date()
+            if now.hour >= DAILY_SUMMARY_HOUR and last_summary_date != today:
+                # Rebuild DB — fresh scan with no stale slots
+                conn.close()
+                os.remove(DB_PATH)
+                conn = sqlite3.connect(DB_PATH)
+                init_db(conn)
+                print("  Database rebuilt — rescanning for daily summary...")
+
+                # Fetch fresh data into the clean DB
+                venues = fetch_venues(VENUES)
+                fresh_slots = scan_venues(venues)
+                store_slots(conn, fresh_slots)
+                populate_new_slots(conn)
+                print(f"  Fresh scan: {len(fresh_slots)} slots")
+
+                # Send summary of all matching slots
+                summary = run_filters(conn, FILTERS_PATH, table="slots")
+                if summary:
+                    total = sum(len(m["rows"]) for m in summary)
+                    for m in summary:
+                        m["alert_name"] = f"[Daily Summary] {m['alert_name']}"
+                    print(f"  Daily summary: {total} slot(s) across {len(summary)} alert(s)")
+                    send_alert(summary, DB_PATH)
+                else:
+                    print("  Daily summary: no matching slots")
+                last_summary_date = today
 
             print(f"  Next scan in {SCAN_INTERVAL_MIN} minutes\n")
             time.sleep(SCAN_INTERVAL_MIN * 60)

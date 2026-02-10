@@ -28,14 +28,15 @@ def parse_filters(path):
     return filters
 
 
-def run_filters(conn, filters_path):
-    """Run each filter query against the slots table (which holds only the latest scan)."""
+def run_filters(conn, filters_path, table="new_slots"):
+    """Run each filter query against the given table (default: new_slots)."""
     filters = parse_filters(filters_path)
     if not filters:
         return []
 
     matches = []
     for alert_name, sql in filters:
+        sql = sql.replace("new_slots", table)
         try:
             cur = conn.execute(sql)
             columns = [desc[0] for desc in cur.description] if cur.description else []
