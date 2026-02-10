@@ -11,6 +11,7 @@ Usage:
 """
 
 import argparse
+import os
 import sqlite3
 import sys
 import time
@@ -19,7 +20,7 @@ from zoneinfo import ZoneInfo
 
 from api import fetch_all_venues, fetch_venues
 from scanner import scan_venues
-from db import init_db, store_slots, detect_new_slots
+from db import init_db, store_slots, populate_new_slots
 from filters import run_filters
 from alerts import send_alert
 
@@ -31,7 +32,7 @@ VENUES = [
 ]
 
 SCAN_INTERVAL_MIN = 10
-DB_PATH = "playtomic.db"
+DB_PATH = os.environ.get("DB_PATH", "playtomic.db")
 FILTERS_PATH = "filters.sql"
 
 
@@ -93,21 +94,24 @@ def main():
             scan_id = store_slots(conn, slots)
             print(f"  Stored as scan #{scan_id}")
 
-            # Detect new slots (informational)
-            new_count = detect_new_slots(conn)
+            # Populate new_slots (first scan = all, subsequent = only new)
+            new_count = populate_new_slots(conn)
             if new_count > 0:
                 print(f"  {new_count} new slot(s) since last scan")
             else:
                 print("  No new slots since last scan")
 
-            # Run filters against ALL current slots
-            matches = run_filters(conn, FILTERS_PATH)
-            if matches:
-                total = sum(len(m["rows"]) for m in matches)
-                print(f"  Filters matched {total} slot(s) across {len(matches)} alert(s)")
-                send_alert(matches, DB_PATH)
+            # Run filters against new_slots only
+            if new_count > 0:
+                matches = run_filters(conn, FILTERS_PATH)
+                if matches:
+                    total = sum(len(m["rows"]) for m in matches)
+                    print(f"  Filters matched {total} slot(s) across {len(matches)} alert(s)")
+                    send_alert(matches, DB_PATH)
+                else:
+                    print("  No filter matches on new slots")
             else:
-                print("  No filter matches")
+                print("  Skipping filters (no new slots)")
 
             print(f"  Next scan in {SCAN_INTERVAL_MIN} minutes\n")
             time.sleep(SCAN_INTERVAL_MIN * 60)

@@ -1,5 +1,5 @@
 -- Alert: indoor double slots on weekends
-SELECT ROW_NUMBER() OVER (ORDER BY date, start_time) AS No, * FROM slots
+SELECT ROW_NUMBER() OVER (ORDER BY date, start_time) AS No, * FROM new_slots
 WHERE court_type='indoor'
 AND court_size='double'
 AND (weekday='Sunday' OR weekday='Saturday')

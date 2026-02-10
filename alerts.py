@@ -1,6 +1,7 @@
 """Email alerts: credential loading, formatting, and sending."""
 
 import json
+import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -10,6 +11,14 @@ CREDENTIALS_PATH = Path(__file__).parent / "email_credentials" / "credentials.js
 
 
 def _load_credentials():
+    """Load credentials from env vars first, then fall back to JSON file."""
+    gmail_user = os.environ.get("GMAIL_USER", "")
+    gmail_app_password = os.environ.get("GMAIL_APP_PASSWORD", "")
+    alert_to = os.environ.get("ALERT_TO", "")
+
+    if gmail_user and gmail_app_password and alert_to:
+        return {"gmail_user": gmail_user, "gmail_app_password": gmail_app_password, "alert_to": alert_to}
+
     try:
         with open(CREDENTIALS_PATH, "r") as f:
             return json.load(f)

@@ -73,29 +73,45 @@ def store_slots(conn, slots):
     return scan_id
 
 
-def detect_new_slots(conn):
-    """Return count of slots in current scan that weren't in the previous scan.
-    Key = (venue, court, date, start_time, duration_min)."""
+def populate_new_slots(conn):
+    """Create/replace new_slots table with only newly appeared slots.
+
+    On first scan (no previous_slots or empty): new_slots = all slots.
+    On subsequent scans: new_slots = slots not in previous_slots.
+    Key = (venue, court, date, start_time, duration_min).
+    Returns the count of new slots.
+    """
+    cur = conn.cursor()
+    cur.execute("DROP TABLE IF EXISTS new_slots")
+
     # Check if previous_slots exists and has data
-    cur = conn.execute(
+    cur.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='previous_slots'"
     )
-    if not cur.fetchone():
-        return 0
+    has_previous = cur.fetchone() is not None
 
-    cur = conn.execute("SELECT COUNT(*) FROM previous_slots")
-    if cur.fetchone()[0] == 0:
-        return 0
+    if has_previous:
+        cur.execute("SELECT COUNT(*) FROM previous_slots")
+        has_previous = cur.fetchone()[0] > 0
 
-    cur = conn.execute("""
-        SELECT COUNT(*) FROM slots s
-        WHERE NOT EXISTS (
-            SELECT 1 FROM previous_slots p
-            WHERE p.venue = s.venue
-              AND p.court = s.court
-              AND p.date = s.date
-              AND p.start_time = s.start_time
-              AND p.duration_min = s.duration_min
-        )
-    """)
+    if not has_previous:
+        # First scan — all slots are new
+        cur.execute("CREATE TABLE new_slots AS SELECT * FROM slots")
+    else:
+        # Subsequent scans — only slots not in previous scan
+        cur.execute("""
+            CREATE TABLE new_slots AS
+            SELECT * FROM slots s
+            WHERE NOT EXISTS (
+                SELECT 1 FROM previous_slots p
+                WHERE p.venue = s.venue
+                  AND p.court = s.court
+                  AND p.date = s.date
+                  AND p.start_time = s.start_time
+                  AND p.duration_min = s.duration_min
+            )
+        """)
+
+    conn.commit()
+    cur.execute("SELECT COUNT(*) FROM new_slots")
     return cur.fetchone()[0]
