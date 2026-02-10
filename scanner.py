@@ -51,6 +51,7 @@ def scan_venues(venues):
                 court_info = v["resource_map"].get(resource_id, {})
                 court_name = court_info.get("name", resource_id)
                 court_type = court_info.get("type", "")
+                court_size = court_info.get("size", "")
 
                 for slot in resource.get("slots", []):
                     raw_time = slot.get("start_time", "")
@@ -76,12 +77,13 @@ def scan_venues(venues):
                         "address": v["street"],
                         "court": court_name,
                         "court_type": court_type,
+                        "court_size": court_size,
                         "date": local_date,
                         "weekday": local_weekday,
                         "start_time": local_time,
                         "duration_min": int(duration) if duration else None,
                         "price_amount": amount,
-                        "price_currency": currency,
+                        "currency": currency,
                     })
                     venue_slots += 1
 

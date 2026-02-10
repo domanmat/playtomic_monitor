@@ -30,6 +30,36 @@ python monitor.py
 | `alerts.py` | Email alert formatting and sending |
 | `filters.sql` | User-defined alert filter queries |
 
+## Database schema
+
+`db.py` creates two tables in `playtomic.db`:
+
+**scans** — one row per scan cycle
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | INTEGER PK | Auto-incremented record ID |
+| `scan_id` | INTEGER | Sequential scan number (1, 2, 3, ...) |
+| `scanned_at` | TEXT | Timestamp (Europe/Warsaw) |
+
+**slots** — all available slots from the latest scan
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | INTEGER PK | Auto-incremented row ID |
+| `venue` | TEXT | Venue name |
+| `city` | TEXT | City |
+| `address` | TEXT | Street address |
+| `court` | TEXT | Court name |
+| `court_type` | TEXT | indoor / outdoor |
+| `court_size` | TEXT | single / double |
+| `date` | DATE | Slot date |
+| `weekday` | TEXT | Day of week (e.g. Monday) |
+| `start_time` | TIME | Start time (Europe/Warsaw) |
+| `duration_min` | INTEGER | Duration in minutes |
+| `price_amount` | REAL | Price value |
+| `currency` | TEXT | Currency code (e.g. PLN) |
+
 ## Requirements
 
 - Python 3.9+

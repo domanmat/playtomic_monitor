@@ -8,25 +8,25 @@ def init_db(conn):
     """Create tables if they don't exist."""
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS scans (
-            scan_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id    INTEGER NOT NULL,
             scanned_at TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS slots (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            scan_id        INTEGER NOT NULL,
             venue          TEXT NOT NULL,
             city           TEXT,
             address        TEXT,
             court          TEXT,
             court_type     TEXT,
+            court_size     TEXT,
             date           DATE NOT NULL,
             weekday        TEXT,
             start_time     TIME NOT NULL,
             duration_min   INTEGER,
             price_amount   REAL,
-            price_currency TEXT,
-            FOREIGN KEY (scan_id) REFERENCES scans(scan_id)
+            currency       TEXT
         );
     """)
 
@@ -39,12 +39,15 @@ def store_slots(conn, slots):
     """
     cur = conn.cursor()
 
+    # Determine next scan_id (max + 1, starting from 1)
+    cur.execute("SELECT COALESCE(MAX(scan_id), 0) + 1 FROM scans")
+    scan_id = cur.fetchone()[0]
+
     # Record the scan
     cur.execute(
-        "INSERT INTO scans (scanned_at) VALUES (?)",
-        (datetime.now(ZoneInfo("Europe/Warsaw")).isoformat(),),
+        "INSERT INTO scans (scan_id, scanned_at) VALUES (?, ?)",
+        (scan_id, datetime.now(ZoneInfo("Europe/Warsaw")).isoformat()),
     )
-    scan_id = cur.lastrowid
 
     # Archive current slots for comparison, then replace
     cur.execute("DROP TABLE IF EXISTS previous_slots")
@@ -53,16 +56,15 @@ def store_slots(conn, slots):
 
     cur.executemany("""
         INSERT INTO slots (
-            scan_id, venue, city, address, court, court_type,
-            date, weekday, start_time, duration_min, price_amount, price_currency
+            venue, city, address, court, court_type, court_size,
+            date, weekday, start_time, duration_min, price_amount, currency
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, [
         (
-            scan_id,
             s["venue"], s["city"], s["address"], s["court"],
-            s["court_type"],
+            s["court_type"], s["court_size"],
             s["date"], s["weekday"], s["start_time"], s["duration_min"],
-            s["price_amount"], s["price_currency"],
+            s["price_amount"], s["currency"],
         )
         for s in slots
     ])
